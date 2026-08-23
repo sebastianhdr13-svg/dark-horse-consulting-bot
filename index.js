@@ -1,0 +1,219 @@
+require('dotenv').config();
+const express = require('express');
+const crypto = require('crypto');
+const {
+  Client,
+  GatewayIntentBits,
+  Partials,
+  PermissionsBitField,
+  ChannelType,
+} = require('discord.js');
+
+const {
+  DISCORD_TOKEN,
+  GUILD_ID,
+  CLIENT_ROLE_ID,
+  PRIVATE_CATEGORY_ID,
+  STAFF_ROLE_IDS,
+  CHANNEL_NAME_SUFFIX,
+  GENERAL_CHANNEL_ID,
+  TYPEFORM_WEBHOOK_SECRET,
+  PORT,
+} = process.env;
+
+const REQUIRED_ENV = {
+  DISCORD_TOKEN,
+  GUILD_ID,
+  CLIENT_ROLE_ID,
+  PRIVATE_CATEGORY_ID,
+};
+
+for (const [key, value] of Object.entries(REQUIRED_ENV)) {
+  if (!value) {
+    console.error(`Missing required env var: ${key}`);
+    process.exit(1);
+  }
+}
+
+const staffRoleIds = (STAFF_ROLE_IDS || '')
+  .split(',')
+  .map((id) => id.trim())
+  .filter(Boolean);
+
+const suffix = CHANNEL_NAME_SUFFIX || '-private';
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers, // privileged intent — enable in Dev Portal
+  ],
+  partials: [Partials.GuildMember],
+});
+
+client.once('ready', () => {
+  console.log(`Logged in as ${client.user.tag}. Watching guild ${GUILD_ID} for role ${CLIENT_ROLE_ID}.`);
+});
+
+// Discord.js sanitization for channel names: lowercase, spaces -> hyphens, strip invalid chars
+function toChannelName(name) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 90); // leave room for the suffix within Discord's 100 char limit
+}
+
+async function findExistingChannel(guild, baseName) {
+  const category = await guild.channels.fetch(PRIVATE_CATEGORY_ID);
+  if (!category) return null;
+  const channels = await guild.channels.fetch();
+  return channels.find(
+    (ch) => ch && ch.parentId === PRIVATE_CATEGORY_ID && ch.name === baseName
+  );
+}
+
+async function createPrivateChannel(member) {
+  const guild = member.guild;
+  const baseName = toChannelName(member.user.username) + suffix;
+
+  const existing = await findExistingChannel(guild, baseName);
+  if (existing) {
+    console.log(`Channel ${baseName} already exists for ${member.user.tag}, skipping.`);
+    return;
+  }
+
+  const permissionOverwrites = [
+    {
+      id: guild.roles.everyone.id,
+      deny: [PermissionsBitField.Flags.ViewChannel],
+    },
+    {
+      id: member.id,
+      allow: [
+        PermissionsBitField.Flags.ViewChannel,
+        PermissionsBitField.Flags.SendMessages,
+        PermissionsBitField.Flags.ReadMessageHistory,
+        PermissionsBitField.Flags.AttachFiles,
+        PermissionsBitField.Flags.EmbedLinks,
+      ],
+    },
+    ...staffRoleIds.map((roleId) => ({
+      id: roleId,
+      allow: [
+        PermissionsBitField.Flags.ViewChannel,
+        PermissionsBitField.Flags.SendMessages,
+        PermissionsBitField.Flags.ReadMessageHistory,
+        PermissionsBitField.Flags.ManageMessages,
+      ],
+    })),
+  ];
+
+  try {
+    const channel = await guild.channels.create({
+      name: baseName,
+      type: ChannelType.GuildText,
+      parent: PRIVATE_CATEGORY_ID,
+      permissionOverwrites,
+      reason: `Client role assigned to ${member.user.tag}`,
+    });
+
+    await channel.send(
+      `Welcome <@${member.id}>! This is your private channel — anything you need, just ask here.`
+    );
+
+    console.log(`Created ${channel.name} for ${member.user.tag}.`);
+
+    if (GENERAL_CHANNEL_ID) {
+      try {
+        const generalChannel = await guild.channels.fetch(GENERAL_CHANNEL_ID);
+        if (generalChannel) {
+          await generalChannel.send(`Everyone welcome <@${member.id}> to Dark Horse! 🎉`);
+        }
+      } catch (err) {
+        console.error('Failed to post general-chat welcome:', err);
+      }
+    }
+  } catch (err) {
+    console.error(`Failed to create private channel for ${member.user.tag}:`, err);
+  }
+}
+
+client.on('guildMemberUpdate', async (oldMember, newMember) => {
+  if (newMember.guild.id !== GUILD_ID) return;
+
+  const hadRole = oldMember.roles.cache.has(CLIENT_ROLE_ID);
+  const hasRole = newMember.roles.cache.has(CLIENT_ROLE_ID);
+
+  if (!hadRole && hasRole) {
+    await createPrivateChannel(newMember);
+  }
+});
+
+// --- Typeform webhook: assigns the Client role directly, no Zapier/Make involved ---
+
+function verifyTypeformSignature(req) {
+  if (!TYPEFORM_WEBHOOK_SECRET) return true; // verification is optional but recommended
+  const signature = req.headers['typeform-signature'];
+  if (!signature) return false;
+  const hash =
+    'sha256=' +
+    crypto.createHmac('sha256', TYPEFORM_WEBHOOK_SECRET).update(req.rawBody).digest('base64');
+  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(hash));
+}
+
+// Pulls the Discord ID out of the submission. Looks for a field with ref "discord_id"
+// first; falls back to any answer that looks like a Discord snowflake ID.
+function extractDiscordId(answers) {
+  const byRef = answers.find((a) => a.field && a.field.ref === 'discord_id');
+  if (byRef) return String(byRef.text ?? byRef.number ?? '').trim();
+
+  const fallback = answers.find((a) => {
+    const val = String(a.text ?? a.number ?? '').trim();
+    return /^\d{15,25}$/.test(val);
+  });
+  return fallback ? String(fallback.text ?? fallback.number ?? '').trim() : null;
+}
+
+const app = express();
+app.use(
+  express.json({
+    verify: (req, res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
+
+app.post('/typeform-webhook', async (req, res) => {
+  if (!verifyTypeformSignature(req)) {
+    console.warn('Rejected Typeform webhook: bad signature.');
+    return res.status(401).send('Invalid signature');
+  }
+
+  const answers = req.body?.form_response?.answers || [];
+  const discordId = extractDiscordId(answers);
+
+  if (!discordId) {
+    console.warn('Typeform submission had no usable Discord ID.');
+    return res.status(400).send('No Discord ID found in submission');
+  }
+
+  try {
+    const guild = await client.guilds.fetch(GUILD_ID);
+    const member = await guild.members.fetch(discordId);
+    await member.roles.add(CLIENT_ROLE_ID, 'Onboarding form submitted');
+    console.log(`Assigned Client role to ${member.user.tag} via Typeform.`);
+    res.status(200).send('OK');
+  } catch (err) {
+    console.error(`Failed to assign role for Discord ID ${discordId}:`, err);
+    res.status(500).send('Failed to assign role — is this person a server member yet?');
+  }
+});
+
+app.get('/', (req, res) => res.send('Dark Horse client bot is running.'));
+
+app.listen(PORT || 3000, () => {
+  console.log(`Webhook server listening on port ${PORT || 3000}.`);
+});
+
+client.login(DISCORD_TOKEN);
