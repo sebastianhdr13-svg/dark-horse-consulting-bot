@@ -250,8 +250,7 @@ client.on('interactionCreate', async (interaction) => {
         }
       )
       .setImage('attachment://dark-horse-banner.png')
-      .setFooter({ text: `© Dark Horse Consulting, ${new Date().getFullYear()}` })
-      .setTimestamp();
+      .setFooter({ text: `© Dark Horse Consulting ${new Date().getFullYear()}` });
 
     await interaction.reply({ embeds: [embed], files: [attachment] });
   } catch (err) {
