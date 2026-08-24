@@ -23,6 +23,8 @@ const {
   STAFF_ROLE_IDS,
   CHANNEL_NAME_SUFFIX,
   GENERAL_CHANNEL_ID,
+  LOOM_SUBMISSIONS_CHANNEL_ID,
+  LOOM_WEBHOOK_SECRET,
   TYPEFORM_WEBHOOK_SECRET,
   PORT,
   LOOM_FORM_URL,
@@ -343,6 +345,52 @@ app.post('/typeform-webhook', async (req, res) => {
 });
 
 app.get('/', (req, res) => res.send('Dark Horse client bot is running.'));
+
+// --- Loom submission webhook: fired by a Google Apps Script trigger on the ---
+// --- Loom Submission Form, posts a formatted embed into #loom-submissions ---
+app.post('/loom-submission-webhook', async (req, res) => {
+  if (LOOM_WEBHOOK_SECRET) {
+    const providedSecret = req.headers['x-webhook-secret'];
+    if (providedSecret !== LOOM_WEBHOOK_SECRET) {
+      console.warn('Rejected Loom submission webhook: bad secret.');
+      return res.status(401).send('Invalid secret');
+    }
+  }
+
+  const { discordName, issue, loomUrl } = req.body || {};
+
+  if (!discordName || !loomUrl) {
+    console.warn('Loom submission webhook missing required fields.');
+    return res.status(400).send('Missing discordName or loomUrl');
+  }
+
+  if (!LOOM_SUBMISSIONS_CHANNEL_ID) {
+    console.error('LOOM_SUBMISSIONS_CHANNEL_ID is not set.');
+    return res.status(500).send('Server not configured for loom submissions');
+  }
+
+  try {
+    const channel = await client.channels.fetch(LOOM_SUBMISSIONS_CHANNEL_ID);
+
+    const embed = new EmbedBuilder()
+      .setColor(0xa020f0)
+      .setTitle('🎬 New Loom Submission')
+      .setDescription('**Action Required:** Review and respond within 24 hours')
+      .addFields(
+        { name: '👤 Discord Name', value: discordName },
+        { name: '🎥 Their Loom', value: `[Watch Video](${loomUrl})` },
+        { name: '📝 Issue', value: issue || 'Not provided' }
+      )
+      .setFooter({ text: 'Respond within 24 hours in their private 1-on-1 channel' });
+
+    await channel.send({ embeds: [embed] });
+    console.log(`Posted Loom submission from ${discordName}.`);
+    res.status(200).send('OK');
+  } catch (err) {
+    console.error('Failed to post Loom submission:', err);
+    res.status(500).send('Failed to post submission');
+  }
+});
 
 app.listen(PORT || 3000, () => {
   console.log(`Webhook server listening on port ${PORT || 3000}.`);
