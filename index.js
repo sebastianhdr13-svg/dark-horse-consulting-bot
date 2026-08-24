@@ -238,7 +238,7 @@ client.on('interactionCreate', async (interaction) => {
         },
         {
           name: '📩 Submit Your Loom Here',
-          value: `[>> Click Here to Submit Your Loom <<](${LOOM_FORM_URL || 'https://example.com'})\nFill out the form with your name, email, Loom link, and description.`,
+          value: `[>> Click Here to Submit Your Loom <<](${LOOM_FORM_URL || 'https://example.com'})\nFill out the form with your name, Loom link, and description.`,
         },
         {
           name: '⚡ What Happens Next?',
@@ -250,7 +250,7 @@ client.on('interactionCreate', async (interaction) => {
         }
       )
       .setImage('attachment://dark-horse-banner.png')
-      .setFooter({ text: `© Dark Horse Consulting ${new Date().getFullYear()}` });
+      .setFooter({ text: `© Dark Horse Consulting, ${new Date().getFullYear()}` });
 
     await interaction.reply({ embeds: [embed], files: [attachment] });
   } catch (err) {
