@@ -27,6 +27,12 @@ const {
   LOOM_WEBHOOK_SECRET,
   LOOM_TEAM_ROLE_ID,
   ONBOARDING_SUBMISSIONS_CHANNEL_ID,
+  ONBOARDING_FORM_ID,
+  TYPEFORM_API_TOKEN,
+  EOD_FORM_URL,
+  EOD_RESPONSES_CHANNEL_ID,
+  EOD_LEADERBOARD_CHANNEL_ID,
+  EOD_WEBHOOK_SECRET,
   TYPEFORM_WEBHOOK_SECRET,
   PORT,
   LOOM_FORM_URL,
@@ -70,6 +76,11 @@ client.once('ready', async () => {
       new SlashCommandBuilder()
         .setName('postloomsupport')
         .setDescription('Posts the 1-1 Loom Support info panel in this channel.')
+        .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+        .toJSON(),
+      new SlashCommandBuilder()
+        .setName('posteodform')
+        .setDescription('Posts the End-of-Day Accountability form panel in this channel.')
         .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
         .toJSON(),
     ];
@@ -200,66 +211,101 @@ async function createPrivateChannel(member) {
 
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
-  if (interaction.commandName !== 'postloomsupport') return;
   if (interaction.guildId !== GUILD_ID) return;
 
-  try {
-    const bannerPath = path.join(__dirname, 'assets', 'dark-horse-banner.png');
-    const attachment = new AttachmentBuilder(bannerPath, { name: 'dark-horse-banner.png' });
+  if (interaction.commandName === 'postloomsupport') {
+    try {
+      const bannerPath = path.join(__dirname, 'assets', 'dark-horse-banner.png');
+      const attachment = new AttachmentBuilder(bannerPath, { name: 'dark-horse-banner.png' });
 
-    const embed = new EmbedBuilder()
-      .setColor(0xa020f0)
-      .setAuthor({ name: 'Dark Horse Consulting' })
-      .setTitle('🎥 1-1 Loom Support — How It Works')
-      .setDescription(
-        `Submit your Loom video and get personalized help solving your bottlenecks. ` +
-          `Your response will be delivered in your private 1-on-1 channel.`
-      )
-      .addFields(
-        {
-          name: '📋 What You Need to Do',
-          value:
-            '1. Come prepared with your bottlenecks\n' +
-            '2. Record a Loom explaining your issue\n' +
-            '3. Submit the form below\n' +
-            '4. Get your response Loom within 24 hours',
-        },
-        {
-          name: '🔍 What to Expect',
-          value:
-            "• I'll watch your Loom and analyze your issue\n" +
-            "• I'll walk through exactly how to solve your bottleneck\n" +
-            '• Response delivered within **24 hours**\n' +
-            "• I'll message you directly in your private 1-on-1 channel",
-        },
-        {
-          name: '🎬 How to Record Your Loom',
-          value:
-            '1. Go to [Loom.com](https://loom.com)\n' +
-            '2. Click **"Start Recording"**\n' +
-            '3. Explain your bottleneck clearly\n' +
-            '4. Share the link in the form below',
-        },
-        {
-          name: '📩 Submit Your Loom Here',
-          value: `[>> Click Here to Submit Your Loom <<](${LOOM_FORM_URL || 'https://example.com'})\nFill out the form with your name, Loom link, and description.`,
-        },
-        {
-          name: '⚡ What Happens Next?',
-          value:
-            "✅ I'll receive your submission\n" +
-            "✅ I'll watch your Loom and review your issue\n" +
-            "✅ I'll record a response Loom showing the solution\n" +
-            "✅ I'll send the response in your private 1-on-1 channel",
-        }
-      )
-      .setImage('attachment://dark-horse-banner.png')
-      .setFooter({ text: `© Dark Horse Consulting, ${new Date().getFullYear()}` });
+      const embed = new EmbedBuilder()
+        .setColor(0xa020f0)
+        .setAuthor({ name: 'Dark Horse Consulting' })
+        .setTitle('🎥 1-1 Loom Support — How It Works')
+        .setDescription(
+          `Submit your Loom video and get personalized help solving your bottlenecks. ` +
+            `Your response will be delivered in your private 1-on-1 channel.`
+        )
+        .addFields(
+          {
+            name: '📋 What You Need to Do',
+            value:
+              '1. Come prepared with your bottlenecks\n' +
+              '2. Record a Loom explaining your issue\n' +
+              '3. Submit the form below\n' +
+              '4. Get your response Loom within 24 hours',
+          },
+          {
+            name: '🔍 What to Expect',
+            value:
+              "• I'll watch your Loom and analyze your issue\n" +
+              "• I'll walk through exactly how to solve your bottleneck\n" +
+              '• Response delivered within **24 hours**\n' +
+              "• I'll message you directly in your private 1-on-1 channel",
+          },
+          {
+            name: '🎬 How to Record Your Loom',
+            value:
+              '1. Go to [Loom.com](https://loom.com)\n' +
+              '2. Click **"Start Recording"**\n' +
+              '3. Explain your bottleneck clearly\n' +
+              '4. Share the link in the form below',
+          },
+          {
+            name: '📩 Submit Your Loom Here',
+            value: `[>> Click Here to Submit Your Loom <<](${LOOM_FORM_URL || 'https://example.com'})\nFill out the form with your name, Loom link, and description.`,
+          },
+          {
+            name: '⚡ What Happens Next?',
+            value:
+              "✅ I'll receive your submission\n" +
+              "✅ I'll watch your Loom and review your issue\n" +
+              "✅ I'll record a response Loom showing the solution\n" +
+              "✅ I'll send the response in your private 1-on-1 channel",
+          }
+        )
+        .setImage('attachment://dark-horse-banner.png')
+        .setFooter({ text: `© Dark Horse Consulting, ${new Date().getFullYear()}` });
 
-    await interaction.reply({ embeds: [embed], files: [attachment] });
-  } catch (err) {
-    console.error('Failed to post loom support embed:', err);
-    await interaction.reply({ content: 'Something went wrong posting this, check the logs.', ephemeral: true });
+      await interaction.reply({ embeds: [embed], files: [attachment] });
+    } catch (err) {
+      console.error('Failed to post loom support embed:', err);
+      await interaction.reply({ content: 'Something went wrong posting this, check the logs.', ephemeral: true });
+    }
+    return;
+  }
+
+  if (interaction.commandName === 'posteodform') {
+    try {
+      const embed = new EmbedBuilder()
+        .setColor(0xa020f0)
+        .setAuthor({ name: 'Dark Horse Consulting' })
+        .setTitle('📊 End-of-Day Accountability')
+        .setDescription(
+          "Every day, log your numbers. This is what separates the traders who actually hit their goals from " +
+            "the ones who just talk about it. Your cash collected total feeds directly into the monthly leaderboard."
+        )
+        .addFields(
+          {
+            name: '📋 What You Need to Do',
+            value:
+              '1. Fill out the form below, every single day\n' +
+              '2. Be honest — this is for you, not for show\n' +
+              "3. Your submission posts automatically and updates the leaderboard",
+          },
+          {
+            name: '📝 Submit Your EOD Report Here',
+            value: `[>> Click Here to Submit Your EOD Report <<](${EOD_FORM_URL || 'https://example.com'})`,
+          }
+        )
+        .setFooter({ text: `© Dark Horse Consulting, ${new Date().getFullYear()}` });
+
+      await interaction.reply({ embeds: [embed] });
+    } catch (err) {
+      console.error('Failed to post EOD form embed:', err);
+      await interaction.reply({ content: 'Something went wrong posting this, check the logs.', ephemeral: true });
+    }
+    return;
   }
 });
 
@@ -359,6 +405,138 @@ app.use(
   })
 );
 
+// Assigns the Client role (if a Discord ID is present) and posts the answers
+// embed for one onboarding submission. Used by both the live webhook and the
+// periodic catch-up scan, so both paths behave identically.
+async function processOnboardingSubmission(formResponse) {
+  const answers = formResponse?.answers || [];
+  const discordId = extractDiscordId(answers);
+
+  if (discordId) {
+    try {
+      const guild = await client.guilds.fetch(GUILD_ID);
+      const member = await guild.members.fetch(discordId);
+      await member.roles.add(CLIENT_ROLE_ID, 'Onboarding form submitted');
+      console.log(`Assigned Client role to ${member.user.tag} via Typeform.`);
+    } catch (err) {
+      console.error(`Failed to assign role for Discord ID ${discordId}:`, err);
+    }
+  }
+
+  if (!ONBOARDING_SUBMISSIONS_CHANNEL_ID) return false;
+
+  try {
+    const qaList = extractAllAnswers(formResponse);
+    const channel = await client.channels.fetch(ONBOARDING_SUBMISSIONS_CHANNEL_ID);
+
+    const embed = new EmbedBuilder()
+      .setColor(0xa020f0)
+      .setTitle('📝 New Onboarding Submission')
+      .addFields(
+        qaList.slice(0, 25).map((qa) => ({
+          name: qa.question.slice(0, 256),
+          value: String(qa.answer).slice(0, 1024) || '—',
+        }))
+      )
+      // Small tracking tag, not a visible label — lets the catch-up job know
+      // this submission was already posted, even after a bot restart.
+      .setFooter({ text: `ref:${formResponse.token}` });
+
+    const teamMention = LOOM_TEAM_ROLE_ID ? `<@&${LOOM_TEAM_ROLE_ID}>` : '';
+    await channel.send({
+      content: teamMention,
+      embeds: [embed],
+      allowedMentions: { roles: LOOM_TEAM_ROLE_ID ? [LOOM_TEAM_ROLE_ID] : [] },
+    });
+    console.log(`Posted onboarding answers (discordId: ${discordId || 'none'}, ref: ${formResponse.token}).`);
+    return true;
+  } catch (err) {
+    console.error('Failed to post onboarding submission embed:', err);
+    return false;
+  }
+}
+
+// Scans the last ~100 messages in the onboarding channel and pulls out every
+// ref:xxxx tag already posted, so the catch-up job knows what NOT to repost.
+async function getAlreadyPostedRefs() {
+  const refs = new Set();
+  if (!ONBOARDING_SUBMISSIONS_CHANNEL_ID) return refs;
+
+  try {
+    const channel = await client.channels.fetch(ONBOARDING_SUBMISSIONS_CHANNEL_ID);
+    const messages = await channel.messages.fetch({ limit: 100 });
+    messages.forEach((msg) => {
+      msg.embeds.forEach((embed) => {
+        const match = embed.footer?.text?.match(/^ref:(.+)$/);
+        if (match) refs.add(match[1]);
+      });
+    });
+  } catch (err) {
+    console.error('Failed to scan for already-posted onboarding refs:', err);
+  }
+  return refs;
+}
+
+let cachedOnboardingFormDefinition = null;
+async function getOnboardingFormDefinition() {
+  if (cachedOnboardingFormDefinition) return cachedOnboardingFormDefinition;
+  if (!TYPEFORM_API_TOKEN || !ONBOARDING_FORM_ID) return null;
+
+  const res = await fetch(`https://api.typeform.com/forms/${ONBOARDING_FORM_ID}`, {
+    headers: { Authorization: `Bearer ${TYPEFORM_API_TOKEN}` },
+  });
+  if (!res.ok) {
+    console.error('Failed to fetch onboarding form definition:', res.status, await res.text());
+    return null;
+  }
+  const data = await res.json();
+  cachedOnboardingFormDefinition = { id: data.id, fields: data.fields };
+  return cachedOnboardingFormDefinition;
+}
+
+// Runs on a timer. Finds any onboarding submission that never got posted
+// (e.g. the bot was asleep when it originally came in) and retries it.
+async function catchUpOnboardingSubmissions() {
+  if (!TYPEFORM_API_TOKEN || !ONBOARDING_FORM_ID) return; // not configured, skip silently
+
+  try {
+    const definition = await getOnboardingFormDefinition();
+    if (!definition) return;
+
+    const res = await fetch(
+      `https://api.typeform.com/forms/${ONBOARDING_FORM_ID}/responses?page_size=25`,
+      { headers: { Authorization: `Bearer ${TYPEFORM_API_TOKEN}` } }
+    );
+    if (!res.ok) {
+      console.error('Failed to fetch onboarding responses:', res.status, await res.text());
+      return;
+    }
+    const data = await res.json();
+    const items = data.items || [];
+
+    const alreadyPosted = await getAlreadyPostedRefs();
+    let retried = 0;
+
+    for (const item of items) {
+      if (alreadyPosted.has(item.token)) continue;
+
+      const formResponse = {
+        token: item.token,
+        answers: item.answers,
+        definition: definition,
+      };
+      const success = await processOnboardingSubmission(formResponse);
+      if (success) retried++;
+    }
+
+    if (retried > 0) {
+      console.log(`Onboarding catch-up job retried and posted ${retried} submission(s).`);
+    }
+  } catch (err) {
+    console.error('Onboarding catch-up job failed:', err);
+  }
+}
+
 app.post('/typeform-webhook', async (req, res) => {
   if (!verifyTypeformSignature(req)) {
     console.warn('Rejected Typeform webhook: bad signature.');
@@ -366,52 +544,7 @@ app.post('/typeform-webhook', async (req, res) => {
   }
 
   const formResponse = req.body?.form_response;
-  const answers = formResponse?.answers || [];
-  const discordId = extractDiscordId(answers);
-
-  let roleAssigned = false;
-  if (discordId) {
-    try {
-      const guild = await client.guilds.fetch(GUILD_ID);
-      const member = await guild.members.fetch(discordId);
-      await member.roles.add(CLIENT_ROLE_ID, 'Onboarding form submitted');
-      console.log(`Assigned Client role to ${member.user.tag} via Typeform.`);
-      roleAssigned = true;
-    } catch (err) {
-      console.error(`Failed to assign role for Discord ID ${discordId}:`, err);
-    }
-  } else {
-    console.log('No Discord ID field in this submission — skipping role assignment, posting answers only.');
-  }
-
-  if (ONBOARDING_SUBMISSIONS_CHANNEL_ID) {
-    try {
-      const qaList = extractAllAnswers(formResponse);
-      const channel = await client.channels.fetch(ONBOARDING_SUBMISSIONS_CHANNEL_ID);
-
-      const embed = new EmbedBuilder()
-        .setColor(0xa020f0)
-        .setTitle('📝 New Onboarding Submission')
-        .addFields(
-          qaList.slice(0, 25).map((qa) => ({
-            name: qa.question.slice(0, 256),
-            value: String(qa.answer).slice(0, 1024) || '—',
-          }))
-        )
-        .setFooter({ text: discordId ? `Discord: <@${discordId}>` : 'No Discord ID captured' });
-
-      const teamMention = LOOM_TEAM_ROLE_ID ? `<@&${LOOM_TEAM_ROLE_ID}>` : '';
-      await channel.send({
-        content: teamMention,
-        embeds: [embed],
-        allowedMentions: { roles: LOOM_TEAM_ROLE_ID ? [LOOM_TEAM_ROLE_ID] : [] },
-      });
-      console.log(`Posted onboarding answers (discordId: ${discordId || 'none'}).`);
-    } catch (err) {
-      console.error('Failed to post onboarding submission embed:', err);
-    }
-  }
-
+  await processOnboardingSubmission(formResponse);
   res.status(200).send('OK');
 });
 
@@ -468,8 +601,105 @@ app.post('/loom-submission-webhook', async (req, res) => {
   }
 });
 
+// --- End-of-Day Accountability webhook: posts each day's answers into the ---
+// --- responses channel, and updates a single running leaderboard message ---
+// --- in the leaderboard channel, ranked by "Total CC This Month" ---
+
+function verifyEodSecret(req) {
+  if (!EOD_WEBHOOK_SECRET) return true;
+  return req.headers['x-webhook-secret'] === EOD_WEBHOOK_SECRET;
+}
+
+// Finds the bot's own existing leaderboard message (if any) and edits it;
+// otherwise posts a fresh one. Keeps exactly one live leaderboard message.
+async function updateLeaderboardMessage(leaderboard) {
+  if (!EOD_LEADERBOARD_CHANNEL_ID) return;
+
+  const monthLabel = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
+  const rankLines = leaderboard.length
+    ? leaderboard
+        .map((entry, i) => {
+          const medal = ['🥇', '🥈', '🥉'][i] || `**${i + 1}.**`;
+          const amount = Number(entry.total) || 0;
+          return `${medal} ${entry.name} — $${amount.toLocaleString()}`;
+        })
+        .join('\n')
+    : 'No submissions yet this month.';
+
+  const embed = new EmbedBuilder()
+    .setColor(0xa020f0)
+    .setTitle(`🏆 Cash Collected Leaderboard — ${monthLabel}`)
+    .setDescription(rankLines)
+    .setFooter({ text: 'Updated automatically after every EOD submission' })
+    .setTimestamp();
+
+  try {
+    const channel = await client.channels.fetch(EOD_LEADERBOARD_CHANNEL_ID);
+    const messages = await channel.messages.fetch({ limit: 50 });
+    const existing = messages.find(
+      (m) => m.author.id === client.user.id && m.embeds[0]?.title?.startsWith('🏆 Cash Collected Leaderboard')
+    );
+
+    if (existing) {
+      await existing.edit({ embeds: [embed] });
+    } else {
+      const sent = await channel.send({ embeds: [embed] });
+      try {
+        await sent.pin();
+      } catch (err) {
+        console.warn('Could not pin leaderboard message (non-fatal):', err.message);
+      }
+    }
+    console.log('Leaderboard updated.');
+  } catch (err) {
+    console.error('Failed to update leaderboard message:', err);
+  }
+}
+
+app.post('/eod-webhook', async (req, res) => {
+  if (!verifyEodSecret(req)) {
+    console.warn('Rejected EOD webhook: bad secret.');
+    return res.status(401).send('Invalid secret');
+  }
+
+  const { qa, leaderboard } = req.body || {};
+
+  if (EOD_RESPONSES_CHANNEL_ID && Array.isArray(qa)) {
+    try {
+      const channel = await client.channels.fetch(EOD_RESPONSES_CHANNEL_ID);
+      const nameField = qa.find((item) => item.question === 'Name');
+
+      const embed = new EmbedBuilder()
+        .setColor(0xa020f0)
+        .setTitle(`📊 EOD Report — ${nameField ? nameField.answer : 'Unknown'}`)
+        .addFields(
+          qa.slice(0, 25).map((item) => ({
+            name: String(item.question).slice(0, 256),
+            value: String(item.answer || '—').slice(0, 1024),
+          }))
+        )
+        .setTimestamp();
+
+      await channel.send({ embeds: [embed] });
+      console.log(`Posted EOD report for ${nameField ? nameField.answer : 'unknown'}.`);
+    } catch (err) {
+      console.error('Failed to post EOD report:', err);
+    }
+  }
+
+  if (Array.isArray(leaderboard)) {
+    await updateLeaderboardMessage(leaderboard);
+  }
+
+  res.status(200).send('OK');
+});
+
 app.listen(PORT || 3000, () => {
   console.log(`Webhook server listening on port ${PORT || 3000}.`);
 });
+
+// Retry safety net for onboarding submissions — runs every 10 minutes.
+setInterval(catchUpOnboardingSubmissions, 10 * 60 * 1000);
 
 client.login(DISCORD_TOKEN);
