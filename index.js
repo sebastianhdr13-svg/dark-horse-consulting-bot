@@ -131,9 +131,21 @@ async function createPrivateChannel(member) {
       reason: `Client role assigned to ${member.user.tag}`,
     });
 
-    await channel.send(
-      `Welcome <@${member.id}>! This is your private channel — anything you need, just ask here.`
-    );
+    const teamMentions = staffRoleIds.map((id) => `<@&${id}>`).join(' ');
+
+    await channel.send({
+      content:
+        `Yoo <@${member.id}>, welcome to Dark Horse Consulting, we're hyped to have you here.\n\n` +
+        `This is a private chat between you and me, feel free to ask any questions about anything, and I'll be happy to help out every step of the way.\n\n` +
+        `Here's what to knock out next:\n\n` +
+        `1️⃣ Drop an intro in the general chat, let us know who you are and what you're working with.\n` +
+        `2️⃣ Join Skool with the link, this is where the modules/information is hosted: [link]\n` +
+        `3️⃣ Go through the Start Here section inside Skool, it'll get you oriented fast.\n` +
+        `4️⃣ Book your onboarding call through Skool after finishing the Start Here section.\n\n` +
+        `Knock these out, and you're locked in. Let's get to work.\n\n` +
+        `${teamMentions}`,
+      allowedMentions: { parse: ['users'], roles: staffRoleIds },
+    });
 
     console.log(`Created ${channel.name} for ${member.user.tag}.`);
 
