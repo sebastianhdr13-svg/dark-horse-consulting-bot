@@ -26,6 +26,7 @@ const {
   LOOM_SUBMISSIONS_CHANNEL_ID,
   LOOM_WEBHOOK_SECRET,
   LOOM_TEAM_ROLE_ID,
+  ONBOARDING_SUBMISSIONS_CHANNEL_ID,
   TYPEFORM_WEBHOOK_SECRET,
   PORT,
   LOOM_FORM_URL,
@@ -310,6 +311,45 @@ function extractDiscordId(answers) {
   return fallback ? String(fallback.text ?? fallback.number ?? '').trim() : null;
 }
 
+// Turns one Typeform answer into a readable string, regardless of question type.
+function formatAnswerValue(answer) {
+  switch (answer.type) {
+    case 'text':
+    case 'email':
+    case 'url':
+    case 'phone_number':
+      return answer[answer.type] || '—';
+    case 'number':
+      return String(answer.number ?? '—');
+    case 'boolean':
+      return answer.boolean ? 'Yes' : 'No';
+    case 'date':
+      return answer.date || '—';
+    case 'choice':
+      return answer.choice?.label || answer.choice?.other || '—';
+    case 'choices':
+      return answer.choices?.labels?.join(', ') || '—';
+    case 'file_url':
+      return answer.file_url || '—';
+    default:
+      return JSON.stringify(answer[answer.type] ?? answer) || '—';
+  }
+}
+
+// Builds an ordered list of { question, answer } pairs using Typeform's field
+// definitions (titles) matched up to each answer by field id.
+function extractAllAnswers(formResponse) {
+  const fieldTitles = {};
+  (formResponse?.definition?.fields || []).forEach((field) => {
+    fieldTitles[field.id] = field.title;
+  });
+
+  return (formResponse?.answers || []).map((answer) => ({
+    question: fieldTitles[answer.field?.id] || answer.field?.ref || 'Question',
+    answer: formatAnswerValue(answer),
+  }));
+}
+
 const app = express();
 app.use(
   express.json({
@@ -325,7 +365,8 @@ app.post('/typeform-webhook', async (req, res) => {
     return res.status(401).send('Invalid signature');
   }
 
-  const answers = req.body?.form_response?.answers || [];
+  const formResponse = req.body?.form_response;
+  const answers = formResponse?.answers || [];
   const discordId = extractDiscordId(answers);
 
   if (!discordId) {
@@ -333,14 +374,48 @@ app.post('/typeform-webhook', async (req, res) => {
     return res.status(400).send('No Discord ID found in submission');
   }
 
+  let roleAssigned = false;
   try {
     const guild = await client.guilds.fetch(GUILD_ID);
     const member = await guild.members.fetch(discordId);
     await member.roles.add(CLIENT_ROLE_ID, 'Onboarding form submitted');
     console.log(`Assigned Client role to ${member.user.tag} via Typeform.`);
-    res.status(200).send('OK');
+    roleAssigned = true;
   } catch (err) {
     console.error(`Failed to assign role for Discord ID ${discordId}:`, err);
+  }
+
+  if (ONBOARDING_SUBMISSIONS_CHANNEL_ID) {
+    try {
+      const qaList = extractAllAnswers(formResponse);
+      const channel = await client.channels.fetch(ONBOARDING_SUBMISSIONS_CHANNEL_ID);
+
+      const embed = new EmbedBuilder()
+        .setColor(0xa020f0)
+        .setTitle('📝 New Onboarding Submission')
+        .addFields(
+          qaList.slice(0, 25).map((qa) => ({
+            name: qa.question.slice(0, 256),
+            value: String(qa.answer).slice(0, 1024) || '—',
+          }))
+        )
+        .setFooter({ text: `Discord: <@${discordId}>` });
+
+      const teamMention = LOOM_TEAM_ROLE_ID ? `<@&${LOOM_TEAM_ROLE_ID}>` : '';
+      await channel.send({
+        content: teamMention,
+        embeds: [embed],
+        allowedMentions: { roles: LOOM_TEAM_ROLE_ID ? [LOOM_TEAM_ROLE_ID] : [] },
+      });
+      console.log(`Posted onboarding answers for Discord ID ${discordId}.`);
+    } catch (err) {
+      console.error('Failed to post onboarding submission embed:', err);
+    }
+  }
+
+  if (roleAssigned) {
+    res.status(200).send('OK');
+  } else {
     res.status(500).send('Failed to assign role — is this person a server member yet?');
   }
 });
