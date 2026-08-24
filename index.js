@@ -369,20 +369,19 @@ app.post('/typeform-webhook', async (req, res) => {
   const answers = formResponse?.answers || [];
   const discordId = extractDiscordId(answers);
 
-  if (!discordId) {
-    console.warn('Typeform submission had no usable Discord ID.');
-    return res.status(400).send('No Discord ID found in submission');
-  }
-
   let roleAssigned = false;
-  try {
-    const guild = await client.guilds.fetch(GUILD_ID);
-    const member = await guild.members.fetch(discordId);
-    await member.roles.add(CLIENT_ROLE_ID, 'Onboarding form submitted');
-    console.log(`Assigned Client role to ${member.user.tag} via Typeform.`);
-    roleAssigned = true;
-  } catch (err) {
-    console.error(`Failed to assign role for Discord ID ${discordId}:`, err);
+  if (discordId) {
+    try {
+      const guild = await client.guilds.fetch(GUILD_ID);
+      const member = await guild.members.fetch(discordId);
+      await member.roles.add(CLIENT_ROLE_ID, 'Onboarding form submitted');
+      console.log(`Assigned Client role to ${member.user.tag} via Typeform.`);
+      roleAssigned = true;
+    } catch (err) {
+      console.error(`Failed to assign role for Discord ID ${discordId}:`, err);
+    }
+  } else {
+    console.log('No Discord ID field in this submission — skipping role assignment, posting answers only.');
   }
 
   if (ONBOARDING_SUBMISSIONS_CHANNEL_ID) {
@@ -399,7 +398,7 @@ app.post('/typeform-webhook', async (req, res) => {
             value: String(qa.answer).slice(0, 1024) || '—',
           }))
         )
-        .setFooter({ text: `Discord: <@${discordId}>` });
+        .setFooter({ text: discordId ? `Discord: <@${discordId}>` : 'No Discord ID captured' });
 
       const teamMention = LOOM_TEAM_ROLE_ID ? `<@&${LOOM_TEAM_ROLE_ID}>` : '';
       await channel.send({
@@ -407,17 +406,13 @@ app.post('/typeform-webhook', async (req, res) => {
         embeds: [embed],
         allowedMentions: { roles: LOOM_TEAM_ROLE_ID ? [LOOM_TEAM_ROLE_ID] : [] },
       });
-      console.log(`Posted onboarding answers for Discord ID ${discordId}.`);
+      console.log(`Posted onboarding answers (discordId: ${discordId || 'none'}).`);
     } catch (err) {
       console.error('Failed to post onboarding submission embed:', err);
     }
   }
 
-  if (roleAssigned) {
-    res.status(200).send('OK');
-  } else {
-    res.status(500).send('Failed to assign role — is this person a server member yet?');
-  }
+  res.status(200).send('OK');
 });
 
 app.get('/', (req, res) => res.send('Dark Horse client bot is running.'));
