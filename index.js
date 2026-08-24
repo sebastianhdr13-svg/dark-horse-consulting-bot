@@ -50,8 +50,21 @@ const client = new Client({
   partials: [Partials.GuildMember],
 });
 
-client.once('ready', () => {
+client.once('ready', async () => {
   console.log(`Logged in as ${client.user.tag}. Watching guild ${GUILD_ID} for role ${CLIENT_ROLE_ID}.`);
+
+  try {
+    const guild = await client.guilds.fetch(GUILD_ID);
+    const members = await guild.members.fetch();
+    const clientMembers = members.filter((m) => m.roles.cache.has(CLIENT_ROLE_ID));
+
+    console.log(`Reconciling ${clientMembers.size} existing member(s) with the Client role...`);
+    for (const member of clientMembers.values()) {
+      await createPrivateChannel(member);
+    }
+  } catch (err) {
+    console.error('Startup reconciliation failed:', err);
+  }
 });
 
 // Discord.js sanitization for channel names: lowercase, spaces -> hyphens, strip invalid chars
@@ -147,6 +160,18 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
 
   if (!hadRole && hasRole) {
     await createPrivateChannel(newMember);
+  }
+});
+
+// Handles the invite-link auto-role case: when someone joins via a link that
+// assigns a role at join time, Discord creates them as a member WITH the role
+// already attached — that's a brand-new member, not a role change on an existing
+// one, so guildMemberUpdate never fires for it. This catches that case.
+client.on('guildMemberAdd', async (member) => {
+  if (member.guild.id !== GUILD_ID) return;
+
+  if (member.roles.cache.has(CLIENT_ROLE_ID)) {
+    await createPrivateChannel(member);
   }
 });
 
