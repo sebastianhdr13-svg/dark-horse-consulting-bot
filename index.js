@@ -1,12 +1,18 @@
 require('dotenv').config();
 const express = require('express');
 const crypto = require('crypto');
+const path = require('path');
 const {
   Client,
   GatewayIntentBits,
   Partials,
   PermissionsBitField,
   ChannelType,
+  REST,
+  Routes,
+  SlashCommandBuilder,
+  EmbedBuilder,
+  AttachmentBuilder,
 } = require('discord.js');
 
 const {
@@ -52,6 +58,21 @@ const client = new Client({
 
 client.once('ready', async () => {
   console.log(`Logged in as ${client.user.tag}. Watching guild ${GUILD_ID} for role ${CLIENT_ROLE_ID}.`);
+
+  try {
+    const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
+    const commands = [
+      new SlashCommandBuilder()
+        .setName('postloomsupport')
+        .setDescription('Posts the 1-1 Loom Support info panel in this channel.')
+        .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+        .toJSON(),
+    ];
+    await rest.put(Routes.applicationGuildCommands(client.user.id, GUILD_ID), { body: commands });
+    console.log('Registered /postloomsupport command.');
+  } catch (err) {
+    console.error('Failed to register slash commands:', err);
+  }
 
   try {
     const guild = await client.guilds.fetch(GUILD_ID);
@@ -171,6 +192,73 @@ async function createPrivateChannel(member) {
     console.error(`Failed to create private channel for ${member.user.tag}:`, err);
   }
 }
+
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+  if (interaction.commandName !== 'postloomsupport') return;
+  if (interaction.guildId !== GUILD_ID) return;
+
+  try {
+    const bannerPath = path.join(__dirname, 'assets', 'dark-horse-banner.png');
+    const attachment = new AttachmentBuilder(bannerPath, { name: 'dark-horse-banner.png' });
+
+    const embed = new EmbedBuilder()
+      .setColor(0xa020f0)
+      .setAuthor({ name: 'Dark Horse Consulting' })
+      .setTitle('🎥 1-1 Loom Support — How It Works')
+      .setDescription(
+        `Submit your Loom video and get personalized help solving your bottlenecks. ` +
+          `Your response will be delivered in your private 1-on-1 channel.`
+      )
+      .addFields(
+        {
+          name: '📋 What You Need to Do',
+          value:
+            '1. Come prepared with your bottlenecks\n' +
+            '2. Record a Loom explaining your issue\n' +
+            '3. Submit the form below\n' +
+            '4. Get your response Loom within 24 hours',
+        },
+        {
+          name: '🔍 What to Expect',
+          value:
+            "• I'll watch your Loom and analyze your issue\n" +
+            "• I'll walk through exactly how to solve your bottleneck\n" +
+            '• Response delivered within **24 hours**\n' +
+            "• I'll message you directly in your private 1-on-1 channel",
+        },
+        {
+          name: '🎬 How to Record Your Loom',
+          value:
+            '1. Go to [Loom.com](https://loom.com)\n' +
+            '2. Click **"Start Recording"**\n' +
+            '3. Explain your bottleneck clearly\n' +
+            '4. Share the link in the form below',
+        },
+        {
+          name: '📩 Submit Your Loom Here',
+          value: '>> Click Here to Submit Your Loom <<: [link]\nFill out the form with your name, email, Loom link, and description.',
+        },
+        {
+          name: '⚡ What Happens Next?',
+          value:
+            "✅ I'll receive your submission\n" +
+            "✅ I'll watch your Loom and review your issue\n" +
+            "✅ I'll record a response Loom showing the solution\n" +
+            "✅ You'll get an email with my response within **24 hours**\n" +
+            "✅ I'll also message you in your private 1-on-1 channel",
+        }
+      )
+      .setImage('attachment://dark-horse-banner.png')
+      .setFooter({ text: `© Dark Horse Consulting, ${new Date().getFullYear()}` })
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [embed], files: [attachment] });
+  } catch (err) {
+    console.error('Failed to post loom support embed:', err);
+    await interaction.reply({ content: 'Something went wrong posting this, check the logs.', ephemeral: true });
+  }
+});
 
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
   if (newMember.guild.id !== GUILD_ID) return;
