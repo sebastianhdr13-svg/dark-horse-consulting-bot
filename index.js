@@ -25,6 +25,7 @@ const {
   GENERAL_CHANNEL_ID,
   TYPEFORM_WEBHOOK_SECRET,
   PORT,
+  LOOM_FORM_URL,
 } = process.env;
 
 const REQUIRED_ENV = {
@@ -237,7 +238,7 @@ client.on('interactionCreate', async (interaction) => {
         },
         {
           name: '📩 Submit Your Loom Here',
-          value: '>> Click Here to Submit Your Loom <<: [link]\nFill out the form with your name, email, Loom link, and description.',
+          value: `[>> Click Here to Submit Your Loom <<](${LOOM_FORM_URL || 'https://example.com'})\nFill out the form with your name, email, Loom link, and description.`,
         },
         {
           name: '⚡ What Happens Next?',
@@ -245,8 +246,7 @@ client.on('interactionCreate', async (interaction) => {
             "✅ I'll receive your submission\n" +
             "✅ I'll watch your Loom and review your issue\n" +
             "✅ I'll record a response Loom showing the solution\n" +
-            "✅ You'll get an email with my response within **24 hours**\n" +
-            "✅ I'll also message you in your private 1-on-1 channel",
+            "✅ I'll send the response in your private 1-on-1 channel",
         }
       )
       .setImage('attachment://dark-horse-banner.png')
