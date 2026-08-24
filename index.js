@@ -25,6 +25,7 @@ const {
   GENERAL_CHANNEL_ID,
   LOOM_SUBMISSIONS_CHANNEL_ID,
   LOOM_WEBHOOK_SECRET,
+  LOOM_TEAM_ROLE_ID,
   TYPEFORM_WEBHOOK_SECRET,
   PORT,
   LOOM_FORM_URL,
@@ -383,7 +384,12 @@ app.post('/loom-submission-webhook', async (req, res) => {
       )
       .setFooter({ text: 'Respond within 24 hours in their private 1-on-1 channel' });
 
-    await channel.send({ embeds: [embed] });
+    const teamMention = LOOM_TEAM_ROLE_ID ? `<@&${LOOM_TEAM_ROLE_ID}>` : '';
+    await channel.send({
+      content: teamMention,
+      embeds: [embed],
+      allowedMentions: { roles: LOOM_TEAM_ROLE_ID ? [LOOM_TEAM_ROLE_ID] : [] },
+    });
     console.log(`Posted Loom submission from ${discordName}.`);
     res.status(200).send('OK');
   } catch (err) {
