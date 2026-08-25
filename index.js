@@ -125,7 +125,7 @@ async function findExistingChannel(guild, baseName) {
 
 async function createPrivateChannel(member) {
   const guild = member.guild;
-  const baseName = toChannelName(member.displayName) + suffix;
+  const baseName = '🤵┃' + toChannelName(member.displayName) + suffix;
 
   const existing = await findExistingChannel(guild, baseName);
   if (existing) {
