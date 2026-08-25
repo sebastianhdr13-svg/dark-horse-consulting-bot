@@ -220,7 +220,6 @@ client.on('interactionCreate', async (interaction) => {
 
       const embed = new EmbedBuilder()
         .setColor(0xa020f0)
-        .setAuthor({ name: 'Dark Horse Consulting' })
         .setTitle('🎥 1-1 Loom Support — How It Works')
         .setDescription(
           `Submit your Loom video and get personalized help solving your bottlenecks. ` +
@@ -279,7 +278,6 @@ client.on('interactionCreate', async (interaction) => {
     try {
       const embed = new EmbedBuilder()
         .setColor(0xa020f0)
-        .setAuthor({ name: 'Dark Horse Consulting' })
         .setTitle('📊 End-of-Day Accountability')
         .addFields(
           {
