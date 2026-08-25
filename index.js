@@ -281,10 +281,6 @@ client.on('interactionCreate', async (interaction) => {
         .setColor(0xa020f0)
         .setAuthor({ name: 'Dark Horse Consulting' })
         .setTitle('📊 End-of-Day Accountability')
-        .setDescription(
-          "Every day, log your numbers. This is what separates the traders who actually hit their goals from " +
-            "the ones who just talk about it. Your cash collected total feeds directly into the monthly leaderboard."
-        )
         .addFields(
           {
             name: '📋 What You Need to Do',
