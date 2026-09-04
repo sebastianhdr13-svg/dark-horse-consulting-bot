@@ -194,7 +194,7 @@ async function createPrivateChannel(member) {
             content:
               `@everyone please give a warm welcome to the new legend <@${member.id}>! We're all hyped to have you 🤙 Please introduce yourself and connect with the rest of the legends...\n\n` +
               `1. Drop your Instagram handle\n` +
-              `2. Drop your goal(s) for the next 3 months inside the program\n` +
+              `2. Drop your goal(s) for the next 4 months inside the program\n` +
               `3. Let us know more about yourself (anything you'd like)\n\n` +
               `Time to take action and RIP 💰`,
             allowedMentions: { parse: ['everyone', 'users'] },
